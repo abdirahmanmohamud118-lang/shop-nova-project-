@@ -115,12 +115,14 @@ module "rds_sg" {
 
   ingress_with_source_security_group_id = [
     {
+      description              = "web-server-reads"
       from_port                = "3306"
       to_port                  = "3306"
       protocol                 = "tcp"
       source_security_group_id = module.web_server_sg.security_group_id
     },
     {
+      description              = "order-processor-writes"
       from_port                = "3306"
       to_port                  = "3306"
       protocol                 = "tcp"
@@ -145,10 +147,8 @@ module "sqs_sg" {
       to_port                  = "443"
       protocol                 = "tcp"
       source_security_group_id = "vpc-endpoint-sg-id" # replace with actual VPC Endpoint SG ID
-    },
-    {
-
     }
+
   ]
 }
 ###########################################

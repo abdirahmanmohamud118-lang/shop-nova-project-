@@ -70,7 +70,7 @@ variable "web_server_config" {
   })
   default = {
     instance_type    = "t2.micro"
-    key_name         = ""
+    key_name         = null
     min_size         = 1
     max_size         = 1
     desired_capacity = 1
@@ -88,7 +88,7 @@ variable "order_processing_config" {
   })
   default = {
     instance_type    = "t2.micro"
-    key_name         = ""
+    key_name         = null
     min_size         = 1
     max_size         = 1
     desired_capacity = 1
@@ -109,6 +109,10 @@ variable "database_config" {
     multi_az                = bool
     backup_retention_period = number
     allocated_storage       = number
+    engine_name             = string
+    major_engine_version    = string
+    family                  = string
+
   })
   default = {
     instance_class          = "db.t3.micro"
@@ -117,5 +121,8 @@ variable "database_config" {
     multi_az                = false
     backup_retention_period = 0
     allocated_storage       = 20
+    engine_name             = "mysql"
+    major_engine_version    = "8.0"
+    family                  = "mysql8.0"
   }
 }

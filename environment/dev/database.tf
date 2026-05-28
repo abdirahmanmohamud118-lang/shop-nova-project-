@@ -42,6 +42,14 @@ module "replica_db" {
   replicate_source_db    = module.master_db.db_instance_identifier
   vpc_security_group_ids = [module.rds_sg.security_group_id]
   skip_final_snapshot    = true
+  major_engine_version   = var.database_config.major_engine_version
+  family                 = var.database_config.family
+  engine                 = var.database_config.engine_name
+  instance_class         = var.database_config.instance_class
+  tags = {
+    Environment = var.environment
+    Project     = var.project_name
+  }
 }
 
 

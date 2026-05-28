@@ -16,6 +16,8 @@ module "web-server-asg" {
   desired_capacity          = var.web_server_config.desired_capacity
   vpc_zone_identifier       = module.vpc.private_subnets
   iam_instance_profile_name = aws_iam_instance_profile.web_server.name
+  health_check_type         = "ELB"
+  health_check_grace_period = 120
   traffic_source_attachments = {
     alb = {
       traffic_source_identifier = module.alb.target_groups["web_servers"].arn
@@ -24,8 +26,7 @@ module "web-server-asg" {
 
 
 
-    health_check_type         = "ELB"
-    health_check_grace_period = 120
+
   }
   block_device_mappings = [
     {
@@ -59,7 +60,7 @@ module "web-server-asg" {
 
   # install dependencies
   yum update -y
-  yum install -y nodejs npm aws-cli jq
+  yum install -y nodejs npm aws-cli jq amazon-cloudwatch-agent
 
   # fetch database credentials from Secrets Manager
   SECRET=$(aws secretsmanager get-secret-value \
@@ -77,8 +78,41 @@ module "web-server-asg" {
   export SQS_QUEUE_URL=${module.sqs.queue_url}
   export AWS_REGION=${var.aws_region}
 
+  # ---------------------------------------------------------------------
+  # NEW: Configure and Start CloudWatch Agent
+  # ---------------------------------------------------------------------
+  cat << 'LOGCONFIG' > /opt/aws/amazon-cloudwatch-agent/bin/config.json
+  {
+    "logs": {
+      "logs_collected": {
+        "files": {
+          "collect_list": [
+            {
+              "file_path": "/var/log/cloud-init-output.log",
+              "log_group_name": "/aws/ec2/${var.project_name}-user-data-${var.environment}",
+              "log_stream_name": "{instance_id}-startup",
+              "retention_in_days": 7
+            },
+            {
+              "file_path": "/var/log/shopnova.log",
+              "log_group_name": "/aws/ec2/${var.project_name}-application-${var.environment}",
+              "log_stream_name": "{instance_id}-app",
+              "retention_in_days": 14
+            }
+          ]
+        }
+      }
+    }
+  }
+  LOGCONFIG
+
+  # Start the CloudWatch agent using our config file
+  /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
+    -a fetch-config -m ec2 -c file:/opt/aws/amazon-cloudwatch-agent/bin/config.json -s
+
+  # ---------------------------------------------------------------------
+
   # start your web application
-  # this would be replaced with your actual app startup command
   echo "Web server started" >> /var/log/shopnova.log
 EOF
   )
@@ -110,39 +144,40 @@ module "order-processing-asg" {
 
 
   scaling_policies = {
-    queue_depth_tracking = {
-      policy_type               = "TargetTrackingScaling"
+    queue_step_scaling = {
+      policy_type               = "StepScaling"
+      adjustment_type           = "ChangeInCapacity"
       estimated_instance_warmup = 60
 
-      target_tracking_configuration = {
-        customized_metric_specification = {
-          metric_name = "ApproximateNumberOfMessagesVisible"
-          namespace   = "AWS/SQS"
-          statistic   = "Sum"
-
-          dimensions = [{
-            name  = "QueueName"
-            value = module.sqs.queue_name
-          }]
+      step_adjustment = [
+        {
+          scaling_adjustment          = 1
+          metric_interval_lower_bound = 0
+          metric_interval_upper_bound = 100
+        },
+        {
+          scaling_adjustment          = 2
+          metric_interval_lower_bound = 100
         }
-        target_value = 100.0
-      }
+      ]
     }
   }
-
-  user_data = base64encode(<<-EOF
+user_data = base64encode(<<-EOF
   #!/bin/bash
   set -e
 
+  # install dependencies
   yum update -y
-  yum install -y nodejs npm aws-cli jq
+  yum install -y nodejs npm aws-cli jq amazon-cloudwatch-agent
 
+  # fetch database credentials from Secrets Manager
   SECRET=$(aws secretsmanager get-secret-value \
     --secret-id ${aws_secretsmanager_secret.rds_secret.name} \
     --region ${var.aws_region} \
     --query SecretString \
     --output text)
 
+  # export as environment variables for the application
   export DB_WRITE_HOST=$(echo $SECRET | jq -r '.write_host')
   export DB_USER=$(echo $SECRET | jq -r '.username')
   export DB_PASS=$(echo $SECRET | jq -r '.password')
@@ -150,6 +185,41 @@ module "order-processing-asg" {
   export SQS_QUEUE_URL=${module.sqs.queue_url}
   export AWS_REGION=${var.aws_region}
 
+  # ---------------------------------------------------------------------
+  # Configure and Start CloudWatch Agent
+  # ---------------------------------------------------------------------
+  cat << 'LOGCONFIG' > /opt/aws/amazon-cloudwatch-agent/bin/config.json
+  {
+    "logs": {
+      "logs_collected": {
+        "files": {
+          "collect_list": [
+            {
+              "file_path": "/var/log/cloud-init-output.log",
+              "log_group_name": "/aws/ec2/${var.project_name}-order-processor-user-data-${var.environment}",
+              "log_stream_name": "{instance_id}-startup",
+              "retention_in_days": 7
+            },
+            {
+              "file_path": "/var/log/shopnova.log",
+              "log_group_name": "/aws/ec2/${var.project_name}-order-processor-app-${var.environment}",
+              "log_stream_name": "{instance_id}-app",
+              "retention_in_days": 14
+            }
+          ]
+        }
+      }
+    }
+  }
+  LOGCONFIG
+
+  # Start the CloudWatch agent using our config file
+  /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
+    -a fetch-config -m ec2 -c file:/opt/aws/amazon-cloudwatch-agent/bin/config.json -s
+
+  # ---------------------------------------------------------------------
+
+  # start your order processing application
   echo "Order processor started" >> /var/log/shopnova.log
 EOF
   )
@@ -163,6 +233,22 @@ EOF
   }
 
 
+}
+resource "aws_cloudwatch_metric_alarm" "sqs_backlog_alarm" {
+  alarm_name          = "${var.project_name}-${var.environment}-sqs-backlog-alarm"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  metric_name         = "ApproximateNumberOfMessagesVisible"
+  namespace           = "AWS/SQS"
+  period              = 60
+  statistic           = "Sum"
+  threshold           = 100
+
+  dimensions = {
+    QueueName = module.sqs.queue_name
+  }
+
+  alarm_actions = [module.order-processing-asg.autoscaling_policy_arns["queue_step_scaling"]]
 }
 
 
@@ -182,7 +268,7 @@ module "alb" {
   vpc_id                     = module.vpc.vpc_id
 
   listeners = {
-    ex-http-https-redirect = {
+    http = {
       port     = 80
       protocol = "HTTP"
       redirect = {
@@ -190,27 +276,26 @@ module "alb" {
         protocol    = "HTTPS"
         status_code = "HTTP_301"
       }
-
-
-
     }
+
     https = {
       port            = 443
       protocol        = "HTTPS"
-      certificate_arn = aws_acm_certificate_validation.cert.certificate_arn
+      certificate_arn = aws_acm_certificate_validation.cert_validation.certificate_arn
+
       forward = {
         target_group_key = "web_servers"
       }
     }
   }
 
-
   target_groups = {
-    ex-instance = {
+    web_servers = {
       name_prefix                       = "web"
       protocol                          = "HTTP"
       port                              = 8080
       target_type                       = "instance"
+      create_attachment                 = false
       deregistration_delay              = 10
       load_balancing_algorithm_type     = "round_robin"
       load_balancing_anomaly_mitigation = "on"
@@ -247,6 +332,7 @@ module "alb" {
   }
 
 }
+
 
 ##########################################################
 # data for the project autoscaling group image 

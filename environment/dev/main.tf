@@ -10,7 +10,7 @@ module "cloudfront" {
   aliases = ["shopnova.com"]
 
   viewer_certificate = {
-    acm_certificate_arn      = aws_acm_certificate_validation.cert.certificate_arn
+    acm_certificate_arn      = aws_acm_certificate_validation.cert_validation.certificate_arn
     ssl_support_method       = "sni-only"
     minimum_protocol_version = "TLSv1.2_2021"
   }
@@ -19,11 +19,11 @@ module "cloudfront" {
     s3 = {
       domain_name              = aws_s3_bucket.static_content.bucket_regional_domain_name
       origin_id                = "s3"
-      origin_access_control_id = aws_cloudfront_origin_access_control.this.id
+      origin_access_control_id = aws_cloudfront_origin_access_control.statics3.id
     }
 
     alb = {
-      domain_name = module.alb.lb_dns_name
+      domain_name = module.alb.dns_name
       origin_id   = "alb"
 
       custom_origin_config = {
@@ -140,11 +140,11 @@ resource "aws_vpc_endpoint" "sqs" {
 ###########################################
 
 resource "aws_vpc_endpoint" "secretsmanager" {
-  vpc_id              = module.vpc.vpc_id
-  service_name        = "com.amazonaws.${var.aws_region}.secretsmanager"
-  vpc_endpoint_type   = "Interface"
-  subnet_ids          = module.vpc.private_subnets
-  security_group_ids  = [aws_security_group.vpc_endpoint_sg.id]
+  vpc_id             = module.vpc.vpc_id
+  service_name       = "com.amazonaws.${var.aws_region}.secretsmanager"
+  vpc_endpoint_type  = "Interface"
+  subnet_ids         = module.vpc.private_subnets
+  security_group_ids = [aws_security_group.vpc_endpoint_sg.id]
 
   private_dns_enabled = true
 
