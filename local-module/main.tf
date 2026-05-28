@@ -27,9 +27,9 @@ resource "aws_vpc_security_group_ingress_rule" "cidr_ingress" {
 }
 
 resource "aws_vpc_security_group_ingress_rule" "sg_ingress" {
-  for_each = { 
-    for rule in var.ingress_with_source_security_group_id : 
-    rule["from_port"] => rule 
+  for_each = {
+    for idx in range(length(var.ingress_with_source_security_group_id)) :
+    "${var.ingress_with_source_security_group_id[idx]["from_port"]}-${idx}" => var.ingress_with_source_security_group_id[idx]
   }
 
   security_group_id            = aws_security_group.this.id
