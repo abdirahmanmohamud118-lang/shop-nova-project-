@@ -1,6 +1,6 @@
 resource "aws_cloudwatch_log_group" "web_server_logs" {
   name              = "/aws/ec2/${var.project_name}-user-data-${var.environment}"
-  retention_in_days = 7 # Automatically purges old startup logs after a week
+  retention_in_days = 7 
 
   tags = {
     Environment = var.environment
