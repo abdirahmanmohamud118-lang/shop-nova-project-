@@ -86,10 +86,6 @@ module "cloudfront" {
 
 
 
-
-
-
-
 module "sqs" {
   source  = "terraform-aws-modules/sqs/aws"
   version = "5.2.1"
