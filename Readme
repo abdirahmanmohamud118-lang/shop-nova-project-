@@ -1,0 +1,13 @@
+# README-
+#project 1 shopnova 
+ the problem >> the problem in this project we are solving was a problem in an ecommerce website that has only 1 point of failure it had a problem where the compute power they are opperating was only one ec2 and also one database it doesnt had multi az and scallig issue and also it was not secure the data coule leaked 
+ # Example problem 
+ they had a black friday a lot of customer rush in and then the website start to go down beacuse of traffic and then the data is lost and also the oder for the previous customer 
+
+ # solution and architecture build 
+ 1. networking >>> vpc , private subnet , public subnets , multi az , internet gateway , route table , natgateway for each subnet , acm certification for the domain 
+ 2. cloudfront >> we created to origin for the cloud front s3 bucket for the static content to be delivered accross the the globe and also alb for traffic going to the website we created a cashe behaviuor so the website could not be overloaded with a static content
+ 3. compute power >> we created the compute power into 2 the first one is the website and the second one is for the oder proccessing both of them they are protecteed from the outside traffic you can only go through them from the application load balancer for the  scalling policy we have a target tracking fot the website and a scaling policy for the oder processing asg >> for both of them to reach the databse layer they need to go to the secret manager
+ 4. sqs and vpc endpoint >>
+ 
+ 
