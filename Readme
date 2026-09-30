@@ -7,7 +7,16 @@
  # solution and architecture build 
  1. networking >>> vpc , private subnet , public subnets , multi az , internet gateway , route table , natgateway for each subnet , acm certification for the domain 
  2. cloudfront >> we created to origin for the cloud front s3 bucket for the static content to be delivered accross the the globe and also alb for traffic going to the website we created a cashe behaviuor so the website could not be overloaded with a static content
- 3. compute power >> we created the compute power into 2 the first one is the website and the second one is for the oder proccessing both of them they are protecteed from the outside traffic you can only go through them from the application load balancer for the  scalling policy we have a target tracking fot the website and a scaling policy for the oder processing asg >> for both of them to reach the databse layer they need to go to the secret manager
- 4. sqs and vpc endpoint >>
+ 3. compute power >> we created the compute power into 2 the first one is the website and the second one is for the oder proccessing both of them they are protecteed 
+from the outside traffic you can only go through them from the application load balancer for the  scalling policy we have a target tracking fot the website 
+and a scaling policy for the oder processing asg >> for both of them to reach the databse layer they need to go to the secret manager
+ 4. sqs and vpc endpoint >> we created this for the oderproccesing asg to connect to the database 
+5. s3 bucket  >> static content 
+6. monitoring >>> we created a cloudwatch alerm to know how the processing is going and when to scale out and scale in 
+7. secret manager >> we created this for the asg in the oderproccessing to be able to access the database layer 
+8. i am policy >> what can be accessed by everything  where  and how 
+9. database >> we created rds database with read replica and a master one with randoom password generator and a secret manager to have the password 
+10. security group >> who can access where and how can the compute reached the internet and also the database 
+
  
  
